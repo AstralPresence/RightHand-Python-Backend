@@ -1,0 +1,6 @@
+flask
+flask_mongoengine
+flask_mqtt
+oauth2client
+pyjwt
+pymongo
