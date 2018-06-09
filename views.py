@@ -198,12 +198,71 @@ def createControlsMethods():
 '''
 {"group":"firstfloor",
 "room":"terrace",
-"control":{"controlStatus":"0",
+"control":{"controlStatus":0,
 "displayName":"socket2",
 "name":"fridge"
 },
 "log":"fridge is off",
 "timeStamp":"201824590425"}
+'''
+
+@app.route('/editControls', methods=['POST', 'OPTIONS'])
+def editControlsMethods():
+    content = request.get_json()
+    old_control = Controls.objects.get(group=content['oldGroup'])
+    for item in old_control.rooms:
+        if item['name'] == content['oldRoom']:
+            break
+        else:
+            return jsonify({'message':'room absent'})
+
+    if [item]:
+        for i in range(len(old_control.rooms)):
+            if old_control.rooms[i] == item:
+                break
+            else:
+                return jsonify({'message': 'control absent'})
+
+        for item1 in old_control.rooms[i].controls:
+            if item1['displayName'] == content['oldControl']['displayName']:
+                print('control exists')
+                break
+            else:
+                print('inside controls else')
+
+                return jsonify({'result': 'fail', 'message': 'control does not exist'})
+
+        if [item1]:
+            for j in range(len(old_control.rooms[i].controls)):
+                if old_control.rooms[i].controls[j] == item1:
+                    break
+                else:
+                    return jsonify({'message': 'control absent2'})
+
+            old_control.rooms[i].controls[j].name = content['newControl']['name']
+            old_control.rooms[i].controls[j].displayName = content['newControl']['displayName']
+            old_control.rooms[i].controls[j].controlStatus = content['newControl']['controlStatus']
+            old_control.rooms[i].name = content['newRoom']
+            old_control.group = content['newGroup']
+            old_control.save()
+
+            return jsonify({'result': 'success', 'message': 'editted'})
+
+
+'''
+{"oldGroup":"firstfloor",
+"oldRoom":"terrace",
+"oldControl":{"controlStatus":0,
+              "displayName":"socket2",
+              "name":"fridge"
+             },
+"newGroup":"firstfloor",
+"newRoom":"terrace",
+"newControl":{"controlStatus":1,
+              "displayName":"socket2",
+              "name":"fridge"
+              }
+}
 '''
 
 
