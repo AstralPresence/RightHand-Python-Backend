@@ -17,3 +17,5 @@ MQTT_TLS_ENABLED = False  # set TLS to disabled for testing purposes
 MONGODB_DB = 'RpiServer'
 MONGODB_HOST = '0.0.0.0'
 MONGODB_PORT = 27017
+
+CORS_HEADERS = 'Content-Type'

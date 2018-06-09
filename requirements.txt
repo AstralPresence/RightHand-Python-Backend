@@ -1,6 +1,7 @@
 flask
-flask_mongoengine
-flask_mqtt
+flask-mongoengine
+flask-mqtt
 oauth2client
+flask-cors
 pyjwt
-pymongo
+
