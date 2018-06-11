@@ -14,7 +14,7 @@ MQTT_KEEPALIVE = 5  # set the time interval for sending a ping to the broker to 
 MQTT_TLS_ENABLED = False  # set TLS to disabled for testing purposes
 
 #mongoengine
-MONGODB_DB = 'RpiServer'
+MONGODB_DB = 'rhDB'
 MONGODB_HOST = '0.0.0.0'
 MONGODB_PORT = 27017
 
