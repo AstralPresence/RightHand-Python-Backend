@@ -25,6 +25,18 @@ def check_auth(accessToken):
         return False
     return True
 
+def decodeControls(control):
+    data = [0, 0]
+    j = 0
+    for i in range(len(control)):
+        if control[i] == '/':
+            data[j] = i
+            j = j + 1
+    group = control[0:(data[0])]
+    room = control[(data[0]+1):(data[1])]
+    controlName= control[(data[1]+1):]
+    return [group, room, controlName]
+
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     content=request.get_json(force=True)                 #QRKey and idToken
@@ -75,7 +87,7 @@ def getAccessToken():
     content = request.get_json(force=True)
     print(content)
     refreshToken = content['refreshToken']
-    payload = jwt.decode(refreshToken,secret)
+    payload = jwt.decode(refreshToken, secret)
     print(payload['refreshSecret'])
     user = User.objects(refreshSecret=payload['refreshSecret'])
 
@@ -95,7 +107,7 @@ def accessGroupMethod():
     content=request.get_json()
     type = content['accessGroupType']
     if type == 'owner':
-        if not AccessGroup.objects(name = content['accessGroupName']):
+        if not AccessGroup.objects(name=content['accessGroupName']):
             access = AccessGroup(type=type, name=content['accessGroupName'], UIDs=[content['UIDs']])
             access.save()
             return jsonify({"result": "success", "message": "owner group created"})
@@ -150,125 +162,138 @@ def displayControls():
     content = request.get_json()
     accessToken = content['accessToken']
     if check_auth(accessToken):
-        type = current_user.accessGroupType
-        email = payload['email']
-        access_user = AccessGroup.objects.get(type=type,UIDs = email)
-        print(access_user)
-        return jsonify({"message": access_user.access, "result": "success"})
+        type = current_user.accessGroupType         #accessGroupType
+        if type == 'other':
+            email = payload['email']
+            access_user = AccessGroup.objects.get(type=type, UIDs=email)
+            name = access_user.name   #accessGroupName
+            n = len(access_user.access)
+            control = []
+            group =[]
+            room = []
+            controlName=[]
+            for i in range(n):
+                control.append(access_user.access[i].control)    #list of control of form group/room/control_name
+                data = decodeControls(control[i])
+                group.append(data[0])
+                room.append(data[1])
+                controlName.append(data[2])
+            print(*control, sep=", ")
+            print(*group, sep=', ')
+            print(*room, sep=', ')
+            print(*controlName, sep=', ')
+            displayName=[]
+            controlStatus=[]
+            for i in range(len(control)):
+                controlsObject= Controls.objects.get(group=group[i])
+                for item in controlsObject.rooms:
+                    if item['name'] == room[i]:
+                        break
+                if [item]:
+                    for j in range(len(controlsObject.rooms)):
+                        if controlsObject.rooms[j] == item:
+                            break
+                    for item1 in controlsObject.rooms[j].controls:
+                        if item1['name'] == controlName[i]:
+                            break
+                    if [item1]:
+                        for k in range(len(controlsObject.rooms[j].controls)):
+                            if controlsObject.rooms[j].controls[k] == item1:
+                                break
+                        displayName.append(controlsObject.rooms[j].controls[k].displayName)
+                        controlStatus.append(controlsObject.rooms[j].controls[k].controlStatus)
+            data = []
+            for i in range(len(control)):
+                data.append({'type': type, 'name': name, 'status': controlStatus[i], 'displayName': displayName[i],
+                             'group': group[i], 'room': room[i]})
+            print(*data)
+            return jsonify({"message": data, "result": "success"})
+
+        elif type == 'owner':
+            email = payload['email']
+            access_user = AccessGroup.objects.get(type=type, UIDs=email)
+            name = access_user.name  # accessGroupName
+
+            groups = Controls.objects.count()
+            cont = (Controls.objects())
+            group = []
+            data = []
+            for i in range(groups):
+                group.append(cont[i].group)
+                rooms = len(cont[i].rooms)
+                room = []
+                for j in range(rooms):
+                    room.append(cont[i].rooms[j].name)
+                    controls = len(cont[i].rooms[j].controls)
+                    status = []
+                    controlName = []
+                    displayName = []
+                    for k in range(controls):
+                        controlName.append(cont[i].rooms[j].controls[k].name)
+                        displayName.append(cont[i].rooms[j].controls[k].displayName)
+                        status.append(cont[i].rooms[j].controls[k].controlStatus)
+                        data.append({'type': type, 'name': name, 'status': status[k], 'displayName': displayName[k],
+                                     'group': group[i], 'room': room[j]})
+
+            print(*group)
+            print(*room)
+            print(*displayName)
+            print(*status)
+            return jsonify({"message": data, "result": "success"})
     else:
-        return jsonify({"message": "UID and type not unique", "result": "fail"})
+        return jsonify({"message": "AccessToken Invalid", "result": "fail"})
 
-@app.route('/createControls', methods=['POST', 'OPTIONS'])
-def createControlsMethods():
+'''
+{"accessToken":"" }
+'''
+
+
+@app.route('/editControl', methods=['POST', 'OPTIONS'])
+def editControlsMethods():
     content = request.get_json()
-    try:
-        cont = Controls.objects.get(group=content['group'])
-    except:
-        new = Controls(group=content['group'])
-        new.rooms = [Rooms(content['room'], [
-            Control(name=content['control']['name'], displayName=content['control']['displayName'],
-                    controlStatus=content['control']['controlStatus'],
-                    userFriendlyLog=[{content['timeStamp']: {'log': content['log']}}])])]
-        new.save()
-        return jsonify({"result": "success", "message": "control created"})
-
-    for item in cont.rooms:
+    control = Controls.objects.get(group=content['group'])
+    for item in control.rooms:
         if item['name'] == content['room']:
             break
         else:
-            cont.rooms.append(Rooms(content['room'], [
-                Control(name=content['control']['name'], displayName=content['control']['displayName'],
-                        controlStatus=content['control']['controlStatus'],
-                        userFriendlyLog=[{content['timeStamp']: {'log': content['log']}}])]))
-            cont.save()
-            return jsonify({'result': 'success', 'message': 'room added'})
+            return jsonify({'message': 'room absent'})
 
     if [item]:
-        for i in range(len(cont.rooms)):
-            if cont.rooms[i] == item:
-                break
-        if [item for item in cont.rooms[i].controls if item['displayName'] == content['control']['displayName']]:
-            print('inside controls if')
-            return jsonify({'result': 'fail', 'message': 'room/control combination already exists'})
-        else:
-            print('inside controls else')
-            cont.rooms[i].controls.append(Control(name=content['control']['name'], displayName=content['control']['displayName'], controlStatus=content['control']['controlStatus'], userFriendlyLog=[{content['timeStamp']: {'log': content['log']}}]))
-            cont.save()
-            return jsonify({'result':'success', 'message': 'control added'})
-'''
-{"group":"firstfloor",
-"room":"terrace",
-"control":{"controlStatus":0,
-"displayName":"socket2",
-"name":"fridge"
-},
-"log":"fridge is off",
-"timeStamp":"201824590425"}
-'''
-
-@app.route('/editControls', methods=['POST', 'OPTIONS'])
-def editControlsMethods():
-    content = request.get_json()
-    old_control = Controls.objects.get(group=content['oldGroup'])
-    for item in old_control.rooms:
-        if item['name'] == content['oldRoom']:
-            break
-        else:
-            return jsonify({'message':'room absent'})
-
-    if [item]:
-        for i in range(len(old_control.rooms)):
-            if old_control.rooms[i] == item:
+        for i in range(len(control.rooms)):
+            if control.rooms[i] == item:
                 break
             else:
                 return jsonify({'message': 'control absent'})
 
-        for item1 in old_control.rooms[i].controls:
-            if item1['displayName'] == content['oldControl']['displayName']:
+        for item1 in control.rooms[i].controls:
+            if item1['name'] == content['control']['name']:
                 print('control exists')
                 break
             else:
-                print('inside controls else')
-
                 return jsonify({'result': 'fail', 'message': 'control does not exist'})
 
         if [item1]:
-            for j in range(len(old_control.rooms[i].controls)):
-                if old_control.rooms[i].controls[j] == item1:
+            for j in range(len(control.rooms[i].controls)):
+                if control.rooms[i].controls[j] == item1:
                     break
                 else:
-                    return jsonify({'message': 'control absent2'})
-
-            old_control.rooms[i].controls[j].name = content['newControl']['name']
-            old_control.rooms[i].controls[j].displayName = content['newControl']['displayName']
-            old_control.rooms[i].controls[j].controlStatus = content['newControl']['controlStatus']
-            old_control.rooms[i].name = content['newRoom']
-            old_control.group = content['newGroup']
-            old_control.save()
+                    return jsonify({'message': 'control absent'})
+            control.rooms[i].controls[j].displayName = content['control']['displayName']
+            control.rooms[i].controls[j].controlStatus = content['control']['controlStatus']
+            control.save()
 
             return jsonify({'result': 'success', 'message': 'editted'})
 
 
 '''
-{"oldGroup":"firstfloor",
-"oldRoom":"terrace",
-"oldControl":{"controlStatus":0,
-              "displayName":"socket2",
+{"group":"firstfloor",
+"room":"terrace",
+"control":{"controlStatus":0,
+            "displayName":"socket2",
               "name":"fridge"
-             },
-"newGroup":"firstfloor",
-"newRoom":"terrace",
-"newControl":{"controlStatus":1,
-              "displayName":"socket2",
-              "name":"fridge"
-              }
+             }
 }
 '''
-
-
-
-
-
 
 
 
