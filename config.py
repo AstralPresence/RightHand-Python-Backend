@@ -1,9 +1,8 @@
 
-
 DEBUG = True
 SECRET_KEY = 'very_big_secret'
 HOST = '0.0.0.0'
-PORT = 5000
+PORT = 80
 
 #Mqtt
 MQTT_BROKER_URL = '0.0.0.0'
@@ -17,5 +16,3 @@ MQTT_TLS_ENABLED = False  # set TLS to disabled for testing purposes
 MONGODB_DB = 'rhDB'
 MONGODB_HOST = '0.0.0.0'
 MONGODB_PORT = 27017
-
-CORS_HEADERS = 'Content-Type'

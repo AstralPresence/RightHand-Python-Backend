@@ -22,13 +22,12 @@ db = MongoEngine(app)
 client = MongoClient('localhost', 27017)
 mongo = client.RpiServer
 
+
 #flask-cors initialization
 CORS(app, supports_credentials=True)                       #cookies enabled during initialization
 
 #importing views
 from views import *
 
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=5000,debug = True)
+    app.run()
