@@ -36,6 +36,7 @@ class Control(db.EmbeddedDocument):
     controlStatus = db.FloatField()
     displayName = db.StringField()
     userFriendlyLog = db.ListField()
+    type = db.StringField()
     meta = { 'collection': 'controls', 'queryset_class': BaseQuerySet}
 
 class Rooms(db.EmbeddedDocument):

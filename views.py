@@ -7,19 +7,17 @@ from flask import request, jsonify, redirect
 import random
 import time
 from jose import jwt
-from oauth2client import crypt, client
+from google.oauth2 import id_token
+from google.auth.transport import requests
 from app import mongo, db
 
-flow = client.flow_from_clientsecrets('client_secret.json', scope='profile',
-                                      redirect_uri='http://www.example.com/oauth2callback')
-flow.params['access_type'] = 'offline'  # offline access
-flow.params['include_granted_scopes'] = True  # incremental auth
 
 CLIENT_ID = "25667199244-6vrfmn6kif5psmu2p8q3t8v5q9701sat.apps.googleusercontent.com"
 QRKey = 'mhUfnCAM2gid8PomMTP25c8N9xVsGRHYX5NwQfMPZpVhDWttj0kpqpYwIpk2LnX1GFpLD8ohG1a6GMkTcfd6y3uvD7sdXawvoC5Tdau2IK4f8SkamnaZ9qUgXiDL'
 secret = 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL'
-
-
+CLIENT_ID_AND = "25667199244-p8raa6qo18obknafb6ffig35osflb44t.apps.googleusercontent.com"
+CLIENT_ID_IOS = "25667199244-hgg2edbv9sjjrf9v0s059e6apqmccbol.apps.googleusercontent.com"
+CLIENT_ID_WEB = "25667199244-cdfjnlg8hlijes010n00l6843h9r5p5m.apps.googleusercontent.com"
 def authenticate():
     """Sends a 401 response that enables basic auth"""
     return Response(
@@ -75,14 +73,19 @@ def login():
     print(content)
     token = content['idToken']
 
-    print(token)
     try:
-        idinfo = client.verify_id_token(token, CLIENT_ID)
-        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-            raise crypt.AppIdentityError("Wrong issuer.")
-    except crypt.AppIdentityError:
-        return jsonify({'result': 'fail', 'message': 'failed at idtoken verification'})
+    	idinfo = id_token.verify_oauth2_token(token, requests.Request())
+    	if idinfo['aud'] not in [CLIENT_ID_IOS, CLIENT_ID_AND, CLIENT_ID_WEB]:
+        	raise ValueError('Could not verify audience.')
 
+    	if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+        	raise ValueError('Wrong issuer.')
+
+    	# ID token is valid. Get the user's Google Account ID from the decoded token.
+    	userid = idinfo['sub']
+    except ValueError:
+    	print('value error')
+   
     print(idinfo['email'])
 
     if not user_datastore.find_user(email=idinfo['email']):
@@ -111,8 +114,8 @@ def login():
         refreshKey = random.getrandbits(32)
         refreshToken = jwt.encode({'refreshSecret': refreshKey, 'email': idinfo['email']}, secret, algorithm='HS256')
         user_datastore.delete_user(user)
-        user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=idinfo['name'],
-                                   accessGroupType=user['accessGroupType'], profilePicURL=idinfo['picture'])
+        user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=user['name'],
+                                   accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'])
         return jsonify({"message": refreshToken, "result": "success"})
 
 
@@ -250,7 +253,7 @@ def displayControls():
 
     elif type == 'owner':
             email = payload['email']
-            access_user = AccessGroup.objects.get(type=accessGroupType, UIDs=email)
+            access_user = AccessGroup.objects.get(type=type)
             name = access_user.name  # accessGroupName
 
             groups = Controls.objects.count()
@@ -276,10 +279,8 @@ def displayControls():
                         data.append({'type': type[k], 'name': controlName[k], 'status': status[k], 'displayName': displayName[k],
                                      'group': group[i], 'room': room[j]})
 
-            print(*group)
-            print(*room)
-            print(*displayName)
-            print(*status)
+            print(data)
+
             return jsonify({"message": data, "result": "success"})
 
 
