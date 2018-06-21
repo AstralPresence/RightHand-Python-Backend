@@ -3,7 +3,7 @@ from functools import wraps
 
 from models import User, Role, AccessGroup, Controls, Rooms, Control, Time, Access
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
-from flask import request, jsonify, redirect
+from flask import request, jsonify, redirect, Response
 import random
 import time
 from jose import jwt
@@ -45,6 +45,7 @@ def check_auth(accessToken):
     try:
         global payload, current_user
         payload = jwt.decode(accessToken, secret)
+        print(payload)
         current_user = user_datastore.find_user(email=payload['email'])
     except jwt.ExpiredSignatureError:
         return False
@@ -115,7 +116,7 @@ def login():
         refreshToken = jwt.encode({'refreshSecret': refreshKey, 'email': idinfo['email']}, secret, algorithm='HS256')
         user_datastore.delete_user(user)
         user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=user['name'],
-                                   accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'])
+                                   accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'],fingerID =user['fingerID'])
         return jsonify({"message": refreshToken, "result": "success"})
 
 
@@ -261,7 +262,7 @@ def displayControls():
             group = []
             data = []
             for i in range(groups):
-                group.append(cont[i].group)
+                group.append(cont[i].groupName)
                 rooms = len(cont[i].rooms)
                 room = []
                 for j in range(rooms):
@@ -291,42 +292,21 @@ def displayControls():
 {"accessToken":"" }
 '''
 
-
+    
 @app.route('/editControl', methods=['POST', 'OPTIONS'])
 def editControlsMethods():
     content = request.get_json()
-    control = Controls.objects.get(group=content['group'])
-    for item in control.rooms:
-        if item['name'] == content['room']:
-            break
-        else:
-            return jsonify({'message': 'room absent'})
+    controlGroup = Controls.objects.get(groupName=grn[0])
+    for room in controlGroup.rooms:
+        if room['name'] == content['room']:
+            for control in room['controls']:
+                if control['name'] == content['name']:
+            	    control['controlStatus'] = content['status']
+            	    control['displayName'] = content['displayName']
+            	    control.save()
+            	    return jsonify({'result': 'success'})
 
-    if [item]:
-        for i in range(len(control.rooms)):
-            if control.rooms[i] == item:
-                break
-            else:
-                return jsonify({'message': 'control absent'})
-
-        for item1 in control.rooms[i].controls:
-            if item1['name'] == content['control']['name']:
-                print('control exists')
-                break
-            else:
-                return jsonify({'result': 'fail', 'message': 'control does not exist'})
-
-        if [item1]:
-            for j in range(len(control.rooms[i].controls)):
-                if control.rooms[i].controls[j] == item1:
-                    break
-                else:
-                    return jsonify({'message': 'control absent'})
-            control.rooms[i].controls[j].displayName = content['control']['displayName']
-            control.rooms[i].controls[j].controlStatus = content['control']['controlStatus']
-            control.save()
-
-            return jsonify({'result': 'success', 'message': 'editted'})
+    return jsonify({'result': 'fail', 'message': 'control does not exist'})
 
 
 '''
@@ -338,7 +318,6 @@ def editControlsMethods():
              }
 }
 '''
-
 
 
 

@@ -29,6 +29,7 @@ class User(db.Document,UserMixin):
     name = db.StringField(max_length=150)
     refreshSecret = db.LongField()
     active = db.BooleanField(default=True)
+    fingerID = db.LongField()
     meta = { 'collection': 'users', 'queryset_class': BaseQuerySet}
 
 class Control(db.EmbeddedDocument):
@@ -44,7 +45,7 @@ class Rooms(db.EmbeddedDocument):
     controls = db.ListField(db.EmbeddedDocumentField(Control))
 
 class Controls(db.Document):
-    group = db.StringField()
+    groupName = db.StringField()
     rooms = db.ListField(db.EmbeddedDocumentField(Rooms))
 
 
