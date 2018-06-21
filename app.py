@@ -15,7 +15,7 @@ app = Flask(__name__)
 app.config.from_pyfile('config.py')
 
 #Mqtt instance
-#mqtt = Mqtt(app)
+mqtt = Mqtt(app)
 
 #mongoengine instance
 db = MongoEngine(app)

@@ -6,6 +6,7 @@ from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
 from flask import request, jsonify, redirect
 import random
 import time
+import datetime
 #from jose
 import jwt
 from oauth2client import crypt, client
@@ -17,8 +18,8 @@ flow.params['access_type'] = 'offline'  # offline access
 flow.params['include_granted_scopes'] = True  # incremental auth
 
 CLIENT_ID = "25667199244-6vrfmn6kif5psmu2p8q3t8v5q9701sat.apps.googleusercontent.com"
-QRKey = 'mhUfnCAM2gid8PomMTP25c8N9xVsGRHYX5NwQfMPZpVhDWttj0kpqpYwIpk2LnX1GFpLD8ohG1a6GMkTcfd6y3uvD7sdXawvoC5Tdau2IK4f8SkamnaZ9qUgXiDL'
-secret = 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL'
+QRKey = 'A1O4tKpqewWe7yJDKwYcYzRM2GFvCxnq0LfRvXpqi5v8NN4SdsZwlVa603lXYhnOi6mJ3EdotltsILCefQgBdqBBAEU9qa61ILEpCNnfQGRRaPdZwee4NXpuOYiJCCuxROfuPDpkM3LHDrJzwkAO51lMaZCeKrf1tpYP5Vkfhrwnl185938tXbfgshmoqn6CNI69xk9uNLZtlSi1gzJXcZSD5uIqQ4QqUghISJc87O5lUM3ZoK0U3m4Xa1u4xEF'
+secret = 'muQXTFpTIhSaJIJOvdAT0JLNHzNyWzRZ8SyHgcT1IB4RX1bB97XyMyLlfpf4HT5aet0kn1toQelBAPVqwmZNqzO2hwXoutCU9kHStIcJVgjDsm3ahmwabGx0EGzMVN9yeAVIUsGtqyZMb7x00qrLIrtovRctP4P5FnkScke9AjCCdXG0QjQ9HzF7Nld7bxpwHB916XuTQjL1Rg0SSlMnQ8GxGuYvM5t9uZWFd3jq2zuQMNXijPBsMoD20tcTmy4'
 
 
 def authenticate():
@@ -66,6 +67,17 @@ def decodeControls(control):
     controlName = control[(data[1] + 1):]
     return [group, room, controlName]
 
+def checkExpiry(timeStamp):
+
+    currentDT = datetime.datetime.now()
+    currentdt = currentDT.strftime("%Y%m%d%H%M")
+    print(str(currentdt))
+    if timeStamp > str(currentdt):
+        return True      #expired
+    else:
+        return False
+
+
 
 user_datastore = MongoEngineUserDatastore(db, User, Role)
 
@@ -94,13 +106,13 @@ def login():
             print("First User Creation")
             qrToken = content['qrToken']
             qrKey = jwt.decode(qrToken, secret, algorithms=['HS256'], options={'verify_aud': False})
-            if qrKey['qrKey'] == QRKey:
+            if qrKey['qrKey'] == QRKey:        #error qrKey['qrKey'] should be qrKey
                 refreshKey = random.getrandbits(32)
 
                 user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=idinfo['name'],
-                                           accessGroupType='owner', profilePicURL=idinfo['picture'])
+                                           accessGroupType='owner', profilePicURL=idinfo['picture'], expiry='never')
 
-                refreshToken = jwt.encode({'refreshSecret': refreshKey}, 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL',
+                refreshToken = jwt.encode({'refreshSecret': refreshKey}, secret,
                                           algorithm='HS256')
                 return jsonify({"message": refreshToken, "result": "success"})
             else:
@@ -115,6 +127,28 @@ def login():
         user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=idinfo['name'],
                                    accessGroupType=user['accessGroupType'], profilePicURL=idinfo['picture'])
         return jsonify({"message": refreshToken, "result": "success"})
+
+
+@app.route('/user', methods=['POST', 'OPTIONS'])
+@requires_auth
+def userMethod():
+    content = request.get_json()
+    if user_datastore.find_user(email=content['email']):
+        return jsonify({"result": "fail", "message": "email already exists"})
+    else:
+        refreshKey = random.getrandbits(32)
+        user_datastore.create_user(email=content['email'], refreshSecret=refreshKey, expiry=content['expiry'],
+                                   accessGroupType=content['accessGroupType'])
+        return jsonify({"result": "success", "message": "user created"})
+
+
+
+'''
+{"email":"eve@gmail.com",
+"accessGroupType":"other",
+"expiry":"201806012230"}
+'''
+
 
 
 @app.route('/getAccessToken', methods=['POST', 'OPTIONS'])
@@ -251,7 +285,7 @@ def displayControls():
 
     elif type == 'owner':
         email = payload['email']
-        access_user = AccessGroup.objects.get(type=accessGroupType, UIDs=email)
+        access_user = AccessGroup.objects.get(type=type, UIDs=email)
         name = access_user.name  # accessGroupName
 
         groups = Controls.objects.count()
@@ -278,10 +312,6 @@ def displayControls():
                         {'type': type[k], 'name': controlName[k], 'status': status[k], 'displayName': displayName[k],
                          'group': group[i], 'room': room[j]})
 
-        print(*group)
-        print(*room)
-        print(*displayName)
-        print(*status)
         return jsonify({"message": data, "result": "success"})
 
 

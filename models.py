@@ -30,7 +30,8 @@ class User(db.Document,UserMixin):
     name = db.StringField(max_length=150)
     refreshSecret = db.LongField()
     active = db.BooleanField(default=True)
-    meta = { 'collection': 'users', 'queryset_class': BaseQuerySet}
+    expiry = db.StringField(max_length = 12)
+    meta = { 'collection': 'user', 'queryset_class': BaseQuerySet}
 
 class Control(db.EmbeddedDocument):
     name = db.StringField()

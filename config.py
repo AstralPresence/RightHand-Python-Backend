@@ -5,7 +5,7 @@ HOST = '0.0.0.0'
 PORT = 80
 
 #Mqtt
-MQTT_BROKER_URL = '0.0.0.0'
+MQTT_BROKER_URL = 'localhost'
 MQTT_BROKER_PORT = 1883
 MQTT_USERNAME = ''  # set the username here if you need authentication for the broker
 MQTT_PASSWORD = ''  # set the password here if the broker demands authentication
