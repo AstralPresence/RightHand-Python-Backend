@@ -1,4 +1,3 @@
-
 from app import db, mongo
 from flask_mongoengine import BaseQuerySet
 from flask_security import UserMixin,RoleMixin
@@ -30,28 +29,27 @@ class User(db.Document,UserMixin):
     name = db.StringField(max_length=150)
     refreshSecret = db.LongField()
     active = db.BooleanField(default=True)
-    expiry = db.StringField(max_length = 12)
-    meta = { 'collection': 'user', 'queryset_class': BaseQuerySet}
+    fingerID = db.LongField()
+    meta = { 'collection': 'users', 'queryset_class': BaseQuerySet}
 
 class Control(db.EmbeddedDocument):
     name = db.StringField()
     controlStatus = db.FloatField()
     displayName = db.StringField()
     userFriendlyLog = db.ListField()
-    meta = { 'collection': 'controls', 'queryset_class': BaseQuerySet}
+    type = db.StringField()
 
 class Rooms(db.EmbeddedDocument):
     name = db.StringField()
     controls = db.ListField(db.EmbeddedDocumentField(Control))
 
 class Controls(db.Document):
-    group = db.StringField()
+    groupName = db.StringField()
     rooms = db.ListField(db.EmbeddedDocumentField(Rooms))
-
+    meta = { 'collection': 'controls', 'queryset_class': BaseQuerySet}
 
 '''
 class Wifi(db.Document):
     ssid = db.StringField()
     password = db.StringField()
 '''
-

@@ -3,23 +3,21 @@ from functools import wraps
 
 from models import User, Role, AccessGroup, Controls, Rooms, Control, Time, Access
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
-from flask import request, jsonify, redirect
+from flask import request, jsonify, redirect, Response
 import random
-import time
 import datetime
-#from jose
+# from jose
 import jwt
-from oauth2client import crypt, client
+from google.oauth2 import id_token
+from google.auth.transport import requests
 from app import mongo, db
 
-flow = client.flow_from_clientsecrets('client_secret.json', scope='profile',
-                                      redirect_uri='http://www.example.com/oauth2callback')
-flow.params['access_type'] = 'offline'  # offline access
-flow.params['include_granted_scopes'] = True  # incremental auth
-
 CLIENT_ID = "25667199244-6vrfmn6kif5psmu2p8q3t8v5q9701sat.apps.googleusercontent.com"
-QRKey = 'A1O4tKpqewWe7yJDKwYcYzRM2GFvCxnq0LfRvXpqi5v8NN4SdsZwlVa603lXYhnOi6mJ3EdotltsILCefQgBdqBBAEU9qa61ILEpCNnfQGRRaPdZwee4NXpuOYiJCCuxROfuPDpkM3LHDrJzwkAO51lMaZCeKrf1tpYP5Vkfhrwnl185938tXbfgshmoqn6CNI69xk9uNLZtlSi1gzJXcZSD5uIqQ4QqUghISJc87O5lUM3ZoK0U3m4Xa1u4xEF'
-secret = 'muQXTFpTIhSaJIJOvdAT0JLNHzNyWzRZ8SyHgcT1IB4RX1bB97XyMyLlfpf4HT5aet0kn1toQelBAPVqwmZNqzO2hwXoutCU9kHStIcJVgjDsm3ahmwabGx0EGzMVN9yeAVIUsGtqyZMb7x00qrLIrtovRctP4P5FnkScke9AjCCdXG0QjQ9HzF7Nld7bxpwHB916XuTQjL1Rg0SSlMnQ8GxGuYvM5t9uZWFd3jq2zuQMNXijPBsMoD20tcTmy4'
+QRKey = 'mhUfnCAM2gid8PomMTP25c8N9xVsGRHYX5NwQfMPZpVhDWttj0kpqpYwIpk2LnX1GFpLD8ohG1a6GMkTcfd6y3uvD7sdXawvoC5Tdau2IK4f8SkamnaZ9qUgXiDL'
+secret = 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL'
+CLIENT_ID_AND = "25667199244-p8raa6qo18obknafb6ffig35osflb44t.apps.googleusercontent.com"
+CLIENT_ID_IOS = "25667199244-hgg2edbv9sjjrf9v0s059e6apqmccbol.apps.googleusercontent.com"
+CLIENT_ID_WEB = "25667199244-cdfjnlg8hlijes010n00l6843h9r5p5m.apps.googleusercontent.com"
 
 
 def authenticate():
@@ -49,6 +47,7 @@ def check_auth(accessToken):
     try:
         global payload, current_user
         payload = jwt.decode(accessToken, secret)
+        print(payload)
         current_user = user_datastore.find_user(email=payload['email'])
     except jwt.ExpiredSignatureError:
         return False
@@ -67,34 +66,78 @@ def decodeControls(control):
     controlName = control[(data[1] + 1):]
     return [group, room, controlName]
 
-def checkExpiry(timeStamp):
 
+def checkExpiry(timeStamp):
     currentDT = datetime.datetime.now()
     currentdt = currentDT.strftime("%Y%m%d%H%M")
     print(str(currentdt))
     if timeStamp > str(currentdt):
-        return True      #expired
+        return True  # expired
     else:
         return False
 
 
-
 user_datastore = MongoEngineUserDatastore(db, User, Role)
+
+def checkFingerAccess(id):
+    try:
+        user = user_datastore.find_user(fingerID=id)
+        type = user.accessGroupType
+        email = user.email
+        print('try')
+    except:
+        print('except')
+        return False
+
+    if type == 'owner':
+        return True
+    else:
+        control = 'groundFloor/livingRoom/doorlock'
+        current_time = datetime.datetime.now()
+        current_time = current_time.strftime("%H%M")
+        j = 0
+        access_group = AccessGroup.objects.get(type=type)
+        for i in range(len(access_group.UIDs)):
+            if access_group.UIDs[i] == email:
+                for j in range(len(access_group.access)):
+                    if access_group.access[j].control==control:
+                       for k in range(len(access_group.access[j].time)):
+                           if (access_group.access[j].time[k].start <= int(current_time)) and (access_group.access[j].time[k].stop >= int(current_time)):
+                               print('found')
+                               return True
+                           else:
+                               print('Time not found')
+                               continue
+                    else:
+                        print('control not found')
+                        continue
+            else:
+                continue
+        print('end')
+        return False
+
+
+
 
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
-    content = request.get_json(force=True)  # qrToken and idToken
+    content = request.get_json(force=True)  # QRKey and idToken
     print(content)
     token = content['idToken']
 
-    print(token)
     try:
-        idinfo = client.verify_id_token(token, CLIENT_ID)
+        idinfo = id_token.verify_oauth2_token(token, requests.Request())
+        if idinfo['aud'] not in [CLIENT_ID_IOS, CLIENT_ID_AND, CLIENT_ID_WEB]:
+            raise ValueError('Could not verify audience.')
+
         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-            raise crypt.AppIdentityError("Wrong issuer.")
-    except crypt.AppIdentityError:
-        return jsonify({'result': 'fail', 'message': 'failed at idtoken verification'})
+            raise ValueError('Wrong issuer.')
+
+        # ID token is valid. Get the user's Google Account ID from the decoded token.
+        userid = idinfo['sub']
+    except ValueError:
+        print('value error')
 
     print(idinfo['email'])
 
@@ -106,13 +149,13 @@ def login():
             print("First User Creation")
             qrToken = content['qrToken']
             qrKey = jwt.decode(qrToken, secret, algorithms=['HS256'], options={'verify_aud': False})
-            if qrKey['qrKey'] == QRKey:        #error qrKey['qrKey'] should be qrKey
+            if qrKey['qrKey'] == QRKey:
                 refreshKey = random.getrandbits(32)
 
                 user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=idinfo['name'],
-                                           accessGroupType='owner', profilePicURL=idinfo['picture'], expiry='never')
+                                           accessGroupType='owner', profilePicURL=idinfo['picture'])
 
-                refreshToken = jwt.encode({'refreshSecret': refreshKey}, secret,
+                refreshToken = jwt.encode({'refreshSecret': refreshKey}, 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL',
                                           algorithm='HS256')
                 return jsonify({"message": refreshToken, "result": "success"})
             else:
@@ -124,8 +167,9 @@ def login():
         refreshKey = random.getrandbits(32)
         refreshToken = jwt.encode({'refreshSecret': refreshKey, 'email': idinfo['email']}, secret, algorithm='HS256')
         user_datastore.delete_user(user)
-        user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=idinfo['name'],
-                                   accessGroupType=user['accessGroupType'], profilePicURL=idinfo['picture'])
+        user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=user['name'],
+                                   accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'],
+                                   fingerID=user['fingerID'])
         return jsonify({"message": refreshToken, "result": "success"})
 
 
@@ -142,13 +186,11 @@ def userMethod():
         return jsonify({"result": "success", "message": "user created"})
 
 
-
 '''
 {"email":"eve@gmail.com",
 "accessGroupType":"other",
 "expiry":"201806012230"}
 '''
-
 
 
 @app.route('/getAccessToken', methods=['POST', 'OPTIONS'])
@@ -285,7 +327,7 @@ def displayControls():
 
     elif type == 'owner':
         email = payload['email']
-        access_user = AccessGroup.objects.get(type=type, UIDs=email)
+        access_user = AccessGroup.objects.get(type=type)
         name = access_user.name  # accessGroupName
 
         groups = Controls.objects.count()
@@ -293,7 +335,7 @@ def displayControls():
         group = []
         data = []
         for i in range(groups):
-            group.append(cont[i].group)
+            group.append(cont[i].groupName)
             rooms = len(cont[i].rooms)
             room = []
             for j in range(rooms):
@@ -312,48 +354,25 @@ def displayControls():
                         {'type': type[k], 'name': controlName[k], 'status': status[k], 'displayName': displayName[k],
                          'group': group[i], 'room': room[j]})
 
+        print(data)
+
         return jsonify({"message": data, "result": "success"})
-
-
-'''
-{"accessToken":"" }
-'''
 
 
 @app.route('/editControl', methods=['POST', 'OPTIONS'])
 def editControlsMethods():
     content = request.get_json()
-    control = Controls.objects.get(group=content['group'])
-    for item in control.rooms:
-        if item['name'] == content['room']:
-            break
-        else:
-            return jsonify({'message': 'room absent'})
+    controlGroup = Controls.objects.get(groupName=grn[0])
+    for room in controlGroup.rooms:
+        if room['name'] == content['room']:
+            for control in room['controls']:
+                if control['name'] == content['name']:
+                    control['controlStatus'] = content['status']
+                    control['displayName'] = content['displayName']
+                    control.save()
+                    return jsonify({'result': 'success'})
 
-    if [item]:
-        for i in range(len(control.rooms)):
-            if control.rooms[i] == item:
-                break
-            else:
-                return jsonify({'message': 'control absent'})
-
-        for item1 in control.rooms[i].controls:
-            if item1['name'] == content['control']['name']:
-                print('control exists')
-                break
-            else:
-                return jsonify({'result': 'fail', 'message': 'control does not exist'})
-
-        if [item1]:
-            for j in range(len(control.rooms[i].controls)):
-                if control.rooms[i].controls[j] == item1:
-                    break
-                else:
-                    return jsonify({'message': 'control absent'})
-            control.rooms[i].controls[j].displayName = content['control']['displayName']
-            control.save()
-
-            return jsonify({'result': 'success', 'message': 'editted'})
+    return jsonify({'result': 'fail', 'message': 'control does not exist'})
 
 
 '''
@@ -365,6 +384,7 @@ def editControlsMethods():
              }
 }
 '''
+
 
 @app.route('/getEventLog/<timestamp>', methods=['GET', 'OPTIONS'])
 def getEventLog(timestamp):
@@ -387,8 +407,14 @@ def getEventLog(timestamp):
                 for l in range(timestamps):
 
                     if (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'] >= int(timestamp):
-                        data.append({"id":group[i]+'/'+room[j]+'/'+control[k], "timeStamp":(cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'], "log":(cont[i].rooms[j].controls[k].userFriendlyLog[l])['log']})
+                        data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
+                                     "timeStamp": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'],
+                                     "log": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['log']})
                     else:
                         continue
 
-    return jsonify({"result":"success", "message":data})
+    return jsonify({"result": "success", "message": data})
+
+
+
+
