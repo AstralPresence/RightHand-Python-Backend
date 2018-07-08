@@ -17,7 +17,7 @@ QRKey = 'mhUfnCAM2gid8PomMTP25c8N9xVsGRHYX5NwQfMPZpVhDWttj0kpqpYwIpk2LnX1GFpLD8o
 secret = 'mhUfnCAM2gid8PomK4f8SkamnaZ9qUgXiDL'
 CLIENT_ID_AND = "25667199244-p8raa6qo18obknafb6ffig35osflb44t.apps.googleusercontent.com"
 CLIENT_ID_IOS = "25667199244-hgg2edbv9sjjrf9v0s059e6apqmccbol.apps.googleusercontent.com"
-CLIENT_ID_WEB = "25667199244-cdfjnlg8hlijes010n00l6843h9r5p5m.apps.googleusercontent.com"
+CLIENT_ID_WEB = "25667199244-iai99upvkk90dg71asi1hvaqpdv0m8vt.apps.googleusercontent.com"
 def authenticate():
     """Sends a 401 response that enables basic auth"""
     return Response(
@@ -68,7 +68,7 @@ def decodeControls(control):
 user_datastore = MongoEngineUserDatastore(db, User, Role)
 
 
-@app.route('/login', methods=['POST', 'OPTIONS'])
+@app.route('/login', methods=['POST'])
 def login():
     content = request.get_json(force=True)  # QRKey and idToken
     print(content)
@@ -120,7 +120,7 @@ def login():
         return jsonify({"message": refreshToken, "result": "success"})
 
 
-@app.route('/getAccessToken', methods=['POST', 'OPTIONS'])
+@app.route('/getAccessToken', methods=['POST'])
 def getAccessToken():
     content = request.get_json(force=True)
     print(content)
@@ -140,7 +140,7 @@ def getAccessToken():
         return accessToken
 
 
-@app.route('/accessGroup', methods=['POST', 'OPTIONS'])
+@app.route('/accessGroup', methods=['POST'])
 def accessGroupMethod():
     content = request.get_json()
     type = content['accessGroupType']
@@ -199,7 +199,7 @@ def accessGroupMethod():
 '''
 
 
-@app.route('/getControls', methods=['GET', 'OPTIONS'])
+@app.route('/getControls', methods=['GET'])
 @requires_auth
 def displayControls():
     content = request.get_json()
@@ -293,7 +293,7 @@ def displayControls():
 '''
 
     
-@app.route('/editControl', methods=['POST', 'OPTIONS'])
+@app.route('/editControl', methods=['POST'])
 def editControlsMethods():
     content = request.get_json()
     controlGroup = Controls.objects.get(groupName=grn[0])
@@ -318,6 +318,36 @@ def editControlsMethods():
              }
 }
 '''
+
+@app.route('/getEventLog/<timestamp>', methods=['GET', 'OPTIONS'])
+def getEventLog(timestamp):
+    print(timestamp)
+    data = []
+    group = []
+    room = []
+    control = []
+    groups = Controls.objects.count()
+    cont = (Controls.objects())
+    for i in range(groups):
+        group.append(cont[i].groupName)
+        rooms = len(cont[i].rooms)
+        for j in range(rooms):
+            room.append(cont[i].rooms[j].name)
+            controls = len(cont[i].rooms[j].controls)
+            for k in range(controls):
+                control.append(cont[i].rooms[j].controls[k].name)
+                timestamps = len(cont[i].rooms[j].controls[k].userFriendlyLog)
+                for l in range(timestamps):
+                    objTimeStamp = cont[i].rooms[j].controls[k].userFriendlyLog[l].keys()[0] 
+                    if (objTimeStamp >= int(timestamp)):
+                        data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
+                                     "timeStamp": objTimeStamp ,
+                                     "log": cont[i].rooms[j].controls[k].userFriendlyLog[l][objTimeStamp]['log']})
+                    else:
+                        continue
+
+    print(data)
+    return jsonify({"result": "success", "message": data})
 
 
 

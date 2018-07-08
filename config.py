@@ -3,7 +3,7 @@
 DEBUG = True
 SECRET_KEY = 'very_big_secret'
 HOST = '0.0.0.0'
-PORT = 80
+PORT = 5000 
 
 #Mqtt
 MQTT_BROKER_URL = '0.0.0.0'

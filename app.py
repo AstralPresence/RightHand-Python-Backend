@@ -64,8 +64,12 @@ def handle_mqtt_message(client, userdata, message):
         payload=message.payload.decode()
     )
     grn=message.topic.split("/") # grn is group room name
-
+   
     content=json.loads(data["payload"])
+    if not content:
+        print(content)
+        return
+
     controlGroup = Controls.objects.get(groupName=grn[0])
     for room in controlGroup.rooms:
         if room['name'] == grn[1]:
@@ -98,11 +102,12 @@ def handle_mqtt_message(client, userdata, message):
 
 @mqtt.on_log()
 def handle_logging(client, userdata, level, buf):
-    print(level, buf)
+    #print(level, buf)
+    return
 
 def checkFingerAccess(id):
      return True;
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=5000, use_reloader=True,debug = True)
+    app.run(host='0.0.0.0',port=5000, threaded=True)
