@@ -2,19 +2,11 @@ from app import db, mongo
 from flask_mongoengine import BaseQuerySet
 from flask_security import UserMixin,RoleMixin
 
-class Time(db.EmbeddedDocument):
-    start = db.IntField()
-    stop = db.IntField()
-
-class Access(db.EmbeddedDocument):
-    control = db.StringField(unique = True)
-    time = db.ListField(db.EmbeddedDocumentField(Time), default =[])
-
 class AccessGroup(db.DynamicDocument):
     type = db.StringField(max_length = 10)
     name = db.StringField(max_length=80, unique = True)
     UIDs = db.ListField(db.StringField(), default=[])
-    access = db.ListField(db.EmbeddedDocumentField(Access), default = [])
+    #accessAllowed = db.ListField(db.GenericEmbeddedDocumentField(Access))
     meta = { 'collection': 'access_group', 'queryset_class': BaseQuerySet}
 
 
@@ -27,6 +19,7 @@ class User(db.Document,UserMixin):
     accessGroupType = db.StringField(max_length=80)
     profilePicURL = db.StringField()
     name = db.StringField(max_length=150)
+    userValidity = db.StringField(max_length=12)
     refreshSecret = db.LongField()
     active = db.BooleanField(default=True)
     fingerID = db.LongField()
@@ -47,6 +40,14 @@ class Controls(db.Document):
     groupName = db.StringField()
     rooms = db.ListField(db.EmbeddedDocumentField(Rooms))
     meta = { 'collection': 'controls', 'queryset_class': BaseQuerySet}
+
+class ControlData(db.EmbeddedDocument):
+    controlTopic = db.StringField()
+    controlStatus = db.FloatField()
+
+class Mode(db.Document):
+    name = db.StringField()
+    controlData = db.EmbeddedDocumentListField(ControlData)
 
 '''
 class Wifi(db.Document):

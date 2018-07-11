@@ -1,11 +1,13 @@
 from app import app
 from functools import wraps
 
-from models import User, Role, AccessGroup, Controls, Rooms, Control, Time, Access
+from models import User, Role, AccessGroup, Controls, Rooms, Control, Mode, ControlData
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
-from flask import request, jsonify, redirect, Response
+from flask import request
+from flask import jsonify, redirect, Response
 import random
 import datetime
+import time
 # from jose
 import jwt
 from google.oauth2 import id_token
@@ -67,14 +69,14 @@ def decodeControls(control):
     return [group, room, controlName]
 
 
-def checkExpiry(timeStamp):
+def checkValidity(timeStamp):
     currentDT = datetime.datetime.now()
     currentdt = currentDT.strftime("%Y%m%d%H%M")
     print(str(currentdt))
-    if timeStamp > str(currentdt):
-        return True  # expired
+    if timeStamp < str(currentdt):
+        return False  # expired
     else:
-        return False
+        return True   # valid
 
 
 user_datastore = MongoEngineUserDatastore(db, User, Role)
@@ -117,9 +119,199 @@ def checkFingerAccess(id):
         return False
 
 
+                    #USER MANAGEMENT
+#Create User Endpoint
+@app.route('/users/create', methods=['POST', 'OPTIONS'])
+@requires_auth
+def createUsersMethod():
+    content = request.get_json()
+    if user_datastore.find_user(email=content['email']):
+        return jsonify({"result": "fail", "message": "email already exists"})
+    else:
+        refreshKey = random.getrandbits(32)
+        user_datastore.create_user(email=content['email'], refreshSecret=refreshKey, userValidity=content['userValidity'],
+                                   accessGroupType=content['accessGroupType'])
+        return jsonify({"result": "success", "message": "user created"})
 
 
+'''
+{"email":"eve@gmail.com",
+"accessGroupType":"other",
+"userValidity":"201806012230"}
+'''
 
+#Get User Endpoint
+@app.route('/users/get', methods=['GET', 'OPTIONS'])
+@requires_auth
+def getUsersMethod():
+    if current_user.accessGroupType == 'owner':
+        users = User.objects.count()
+        user = User.objects()
+        userName = []
+        email = []
+        accessGroupName = []
+        accessGroupType = []
+        data = []
+
+        for i in range(users):
+            userName.append(user[i].name)
+            email.append(user[i].email)
+            accessGroupType.append(user[i].accessGroupType)
+            accessGroup = AccessGroup.objects()
+            for j in range(AccessGroup.objects.count()):
+                if accessGroup[j].type == accessGroupType[i]:
+                    for k in range(len(accessGroup[j].UIDs)):
+                        if accessGroup[j].UIDs[k] == email[i]:
+                            accessGroupName.append(accessGroup[j].name)
+                            break;
+                    break;
+
+            data.append({'username': userName[i], 'email': email[i], 'accessGroupType': accessGroupType[i], 'accessGroupName': accessGroup[j].name})
+        return jsonify({'result': 'success', 'message': data})
+    else:
+        return jsonify({'result': 'fail', 'message': 'not a owner type'})
+
+# Edit User Endpoint
+@app.route('/users/edit', methods=['POST', 'OPTIONS'])
+@requires_auth
+def editUsersMethod():
+    content = request.get_json()
+    user = User.objects.get(email=content['email'])
+    user.accessGroupType = content['accessGroupType']
+    user.userValidity = content['userValidity']
+    user.save()
+    return jsonify({'result':'success', 'message': 'user editted'})
+'''
+{ "email": "adam@gmail.com",
+  "accessGroupType":"other",                #new type
+  "userValidity": "201807111620"
+}
+'''
+
+# Delete User Endpoint
+@app.route('/users/delete', methods=['POST', 'OPTIONS'])
+@requires_auth
+def deleteUsersMethod():
+    content = request.get_json()
+    if current_user.accessGroupType == 'owner':
+        if user_datastore.find_user(email=content['email']):
+            user_datastore.delete_user(email=content['email'])
+            return jsonify({'result': 'success', 'message': 'user deleted'})
+        else:
+            return jsonify({'result': 'fail', 'message': 'user not found'})
+    else:
+        return jsonify({'result': 'fail', 'message': 'not owner type user'})
+
+'''
+{ "email" : "adam@gmail.com"}
+'''
+
+                    #ACCESS GROUP
+#create group endpoint
+@app.route('/accessGroup/create', methods=['POST', 'OPTIONS'])
+@requires_auth
+def accessGroupMethod():
+    content = request.get_json(force=True)
+    print(content)
+    type = content['type']
+    if type == 'owner':
+        if not AccessGroup.objects(name=content['name']):
+            access = AccessGroup(type=type, name=content['name'], UIDs=content['UIDs'])
+            access.save()
+            return jsonify({"result": "success", "message": "owner group created"})
+        else:
+            access = AccessGroup.objects.get(name=content['name'])
+            for i in range(len(content['UIDs'])):
+                try:
+                    access.UIDs.index(content['UIDs'][i])
+                    print('UID already exists')
+                except:
+                    access.UIDs.append(content['UIDs'][i])
+                    access.save()
+                    print('UID appended')
+            return jsonify({"result": "success", "message": "owner group UIDs appended"})
+
+    elif type == 'other':
+        if not AccessGroup.objects(name=content['name']):
+            access = AccessGroup(type=type, name=content['name'], UIDs=content['UIDs'])
+            access.accessAllowed = []
+            for i in range(len(content['accessAllowed'])):
+                access.accessAllowed.timeRestriction = []
+                print('time')
+                for j in range(len(content['accessAllowed'][i]['timeRestriction'])):
+                    access.accessAllowed.timeRestriction.append({'start': content['accessAllowed'][i]['timeRestriction'][j]['start'], 'end': content['accessAllowed'][i]['timeRestriction'][j]['end']})
+                access.accessAllowed.append({'controlTopic': content['accessAllowed'][i]['controlTopic'], 'timeRestriction': access.accessAllowed.timeRestriction})
+            access.save()
+            return jsonify({"result": "success", "message": "group created"})
+
+        else:
+            access = AccessGroup.objects.get(name=content['name'])
+            for i in range(len(content['UIDs'])):
+                try:
+                    access.UIDs.index(content['UIDs'][i])
+                    print('UID already exists')
+                except:
+                    access.UIDs.append(content['UIDs'][i])
+                    access.save()
+                    print('UID appended')
+            for i in range(len(content['accessAllowed'])):
+                if next((item for item in access.accessAllowed if item["controlTopic"] == content['accessAllowed'][i]['controlTopic']), None) :
+                    print('found2')
+                    array = access.accessAllowed
+                    for j in range(len(content['accessAllowed'][i]['timeRestriction'])):
+                        print('time')
+                        try:
+                            array[i]['timeRestriction'].index(
+                                {'start': content['accessAllowed'][i]['timeRestriction'][j]['start'],
+                                 'end': content['accessAllowed'][i]['timeRestriction'][j]['end']})
+                            print('found')
+                        except:
+                            array[i]['timeRestriction'].append(
+                                {'start': content['accessAllowed'][i]['timeRestriction'][j]['start'],
+                                 'end': content['accessAllowed'][i]['timeRestriction'][j]['end']})
+                            print('appended')
+                        access.accessAllowed = array
+                        access.save()
+
+                else:
+                    access.accessAllowed.append({'controlTopic': content['accessAllowed'][i]['controlTopic'],
+                                                 'timeRestriction': content['accessAllowed'][i]['timeRestriction']})
+                    print('appended2')
+                    access.save()
+
+            return jsonify({"result": "success", "message": "updated"})
+    else:
+        return jsonify({"result": "fail", "message": "Wrong access Group Type"})
+
+
+'''
+{"name":"servants",
+"type":"other",
+"UIDs":["hella@gmail.com"],
+"accessAllowed":[{"controlTopic":"light","timeRestriction":[{"start":"0900","end":"0930"}]}]}
+'''
+
+# Get Groups Endpoint
+@app.route('/accessGroup/get', methods=['GET', 'OPTIONS'])
+@requires_auth
+def getAccessGroups():
+    name = []
+    controls=[]
+    data=[]
+    accessGroup = AccessGroup.objects()
+    accessGroups = AccessGroup.objects.count()
+    for i in range(accessGroups):
+        if accessGroup[i].type == 'owner':
+            name.append(accessGroup[i].name)
+            data.append({'name':name[i]})
+        elif accessGroup[i].type == 'other':
+            name.append(accessGroup[i].name)
+            controls.append(accessGroup[i].accessAllowed)
+            data.append({'name':name[i], 'controls':controls[i]})
+    return jsonify({'result':'success', 'message': data})
+
+                    # AUTHORIZATION
+#Login Endpoint
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     content = request.get_json(force=True)  # QRKey and idToken
@@ -173,26 +365,7 @@ def login():
         return jsonify({"message": refreshToken, "result": "success"})
 
 
-@app.route('/user', methods=['POST', 'OPTIONS'])
-@requires_auth
-def userMethod():
-    content = request.get_json()
-    if user_datastore.find_user(email=content['email']):
-        return jsonify({"result": "fail", "message": "email already exists"})
-    else:
-        refreshKey = random.getrandbits(32)
-        user_datastore.create_user(email=content['email'], refreshSecret=refreshKey, expiry=content['expiry'],
-                                   accessGroupType=content['accessGroupType'])
-        return jsonify({"result": "success", "message": "user created"})
-
-
-'''
-{"email":"eve@gmail.com",
-"accessGroupType":"other",
-"expiry":"201806012230"}
-'''
-
-
+#Access Token Endpoint
 @app.route('/getAccessToken', methods=['POST', 'OPTIONS'])
 def getAccessToken():
     content = request.get_json(force=True)
@@ -213,66 +386,68 @@ def getAccessToken():
         return accessToken
 
 
-@app.route('/accessGroup', methods=['POST', 'OPTIONS'])
-def accessGroupMethod():
+                    #CONTROLS
+#Edit Control Endpoint
+@app.route('/controls/edit', methods=['POST', 'OPTIONS'])
+@requires_auth
+def editControlsMethods():
     content = request.get_json()
-    type = content['accessGroupType']
-    if type == 'owner':
-        if not AccessGroup.objects(name=content['accessGroupName']):
-            access = AccessGroup(type=type, name=content['accessGroupName'], UIDs=[content['UIDs']])
-            access.save()
-            return jsonify({"result": "success", "message": "owner group created"})
-        else:
-            access = AccessGroup.objects.get(name=content['accessGroupName'])
-            try:
-                access.UIDs.index(content['UIDs'])
-                return jsonify({"results": "fail", "message": "owner group UID exists"})
-            except:
-                access.UIDs.append(content['UIDs'])
-                access.save()
-                return jsonify({"results": "success", "message": "owner group appended"})
+    controlGroup = Controls.objects.get(groupName=grn[0])
+    for room in controlGroup.rooms:
+        if room['name'] == content['room']:
+            for control in room['controls']:
+                if control['name'] == content['name']:
+                    control['controlStatus'] = content['status']
+                    control['displayName'] = content['displayName']
+                    control.save()
+                    return jsonify({'result': 'success'})
 
-    elif type == 'other':
-        if not AccessGroup.objects(name=content['accessGroupName']):
-            access1 = AccessGroup(type=type, name=content['accessGroupName'], UIDs=[content['UIDs']])
-            access1.access.control = content['access']['control']
-            access1.access = [Access(content['access']['control'], [
-                Time(start=content['access']['time']['start'], stop=content['access']['time']['stop'])])]
-            access1.save()
-            return jsonify({"result": "success", "message": "group created"})
-        else:
-            access1 = AccessGroup.objects.get(name=content['accessGroupName'])
-            try:
-                access1.UIDs.index(content['UIDs'])
-                print("UIDs already exists")
-            except:
-                access1.UIDs.append(content['UIDs'])
-                access1.save()
-                print("Group UIDs updated")
-
-            try:
-                access1.access.index(Access(content['access']['control'], [
-                    Time(start=content['access']['time']['start'], stop=content['access']['time']['stop'])]))
-                print("try")
-            except:
-                access1.access.append(Access(content['access']['control'], [
-                    Time(start=content['access']['time']['start'], stop=content['access']['time']['stop'])]))
-                access1.save()
-
-        return jsonify({"result": "success", "message": "updated"})
-    else:
-        return jsonify({"result": "fail", "message": "Wrong access Group Type"})
+    return jsonify({'result': 'fail', 'message': 'control does not exist'})
 
 
 '''
-{"accessGroupName":"servants",
-"accessGroupType":"other",
-"UIDs":"hella@gmail.com",
-"access":{"control":"light","time":{"start":"0900","stop":"0930"}}}
+{"group":"firstfloor",
+"room":"terrace",
+"control":{"controlStatus":0,
+            "displayName":"light",
+              "name":"light1"
+             }
+}
 '''
 
+#Get Event Log
+@app.route('/events/<timestamp>', methods=['GET', 'OPTIONS'])
+@requires_auth
+def getEventLog(timestamp):
+    print(timestamp)
+    data = []
+    group = []
+    room = []
+    control = []
+    groups = Controls.objects.count()
+    cont = (Controls.objects())
+    for i in range(groups):
+        group.append(cont[i].group)
+        rooms = len(cont[i].rooms)
+        for j in range(rooms):
+            room.append(cont[i].rooms[j].name)
+            controls = len(cont[i].rooms[j].controls)
+            for k in range(controls):
+                control.append(cont[i].rooms[j].controls[k].name)
+                timestamps = len(cont[i].rooms[j].controls[k].userFriendlyLog)
+                for l in range(timestamps):
 
-@app.route('/getControls', methods=['GET', 'OPTIONS'])
+                    if (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'] >= int(timestamp):
+                        data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
+                                     "timeStamp": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'],
+                                     "log": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['log']})
+                    else:
+                        continue
+
+    return jsonify({"result": "success", "message": data})
+
+#Get Controls Endpoint
+@app.route('/controls/get', methods=['GET', 'OPTIONS'])
 @requires_auth
 def displayControls():
     content = request.get_json()
@@ -358,63 +533,68 @@ def displayControls():
 
         return jsonify({"message": data, "result": "success"})
 
-
-@app.route('/editControl', methods=['POST', 'OPTIONS'])
-def editControlsMethods():
+                    # GROUP MODES
+# Create Mode Endpoint
+@app.route('/mode/create', methods=['POST', 'OPTIONS'])
+def modeCreateMethod():
     content = request.get_json()
-    controlGroup = Controls.objects.get(groupName=grn[0])
-    for room in controlGroup.rooms:
-        if room['name'] == content['room']:
-            for control in room['controls']:
-                if control['name'] == content['name']:
-                    control['controlStatus'] = content['status']
-                    control['displayName'] = content['displayName']
-                    control.save()
-                    return jsonify({'result': 'success'})
+    if Mode.objects(name=content['name']):
+        mode=Mode.objects.get(name=content['name'])
+        flag = 0
+        for i in range(len(content['controlData'])):
+            flag1 = 0
+            flag2 = 0
+            for item in mode.controlData:
+                if item['controlTopic'] == content['controlData'][i]['controlTopic']:
+                    flag1 = 1
+                    if item['controlStatus'] != content['controlData'][i]['controlStatus']:
+                        flag2 = 1
+                        control_status = item['controlStatus']
 
-    return jsonify({'result': 'fail', 'message': 'control does not exist'})
+            if flag1 == 0:
+                mode.controlData.append(ControlData(controlTopic=content['controlData'][i]['controlTopic'],
+                                                    controlStatus=content['controlData'][i]['controlStatus']))
+                mode.save()
+                flag = 1
+            elif flag2 == 1:
+                mode.controlData.remove(ControlData(controlTopic=content['controlData'][i]['controlTopic'],
+                                                    controlStatus=control_status))
 
+                mode.controlData.append(ControlData(controlTopic=content['controlData'][i]['controlTopic'],
+                                                    controlStatus=content['controlData'][i]['controlStatus']))
+                mode.save()
+                flag = 1
+        if flag == 0:
+            return jsonify({'result': 'fail', 'message': 'mode already exists'})
+        else:
+            return jsonify({'result': 'success', 'message': 'mode control data appended'})
+    else:
+        mode = Mode(name=content['name'])
+        mode.controlData=[]
+        for i in range(len(content['controlData'])):
+            control_data = ControlData(controlTopic=content['controlData'][i]['controlTopic'], controlStatus=content['controlData'][i]['controlStatus'])
+            mode.controlData.append(control_data)
+        mode.save()
+        return jsonify({'result': 'success', 'message': 'mode Created'})
 
 '''
-{"group":"firstfloor",
-"room":"terrace",
-"control":{"controlStatus":0,
-            "displayName":"socket2",
-              "name":"fridge"
-             }
+{ "name": "night",
+ "controlData":[{"controlTopic":"groundFloor/bedRoom/light", "controlStatus":0},
+                {"controlTopic":"firstFloor/bedRoom/light", "controlStatus":1}]
 }
 '''
 
-
-@app.route('/getEventLog/<timestamp>', methods=['GET', 'OPTIONS'])
-def getEventLog(timestamp):
-    print(timestamp)
-    data = []
-    group = []
-    room = []
-    control = []
-    groups = Controls.objects.count()
-    cont = (Controls.objects())
-    for i in range(groups):
-        group.append(cont[i].group)
-        rooms = len(cont[i].rooms)
-        for j in range(rooms):
-            room.append(cont[i].rooms[j].name)
-            controls = len(cont[i].rooms[j].controls)
-            for k in range(controls):
-                control.append(cont[i].rooms[j].controls[k].name)
-                timestamps = len(cont[i].rooms[j].controls[k].userFriendlyLog)
-                for l in range(timestamps):
-
-                    if (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'] >= int(timestamp):
-                        data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
-                                     "timeStamp": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'],
-                                     "log": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['log']})
-                    else:
-                        continue
-
-    return jsonify({"result": "success", "message": data})
-
-
+#Get Modes Endpoint
+@app.route('/mode/get', methods=['GET', 'OPTIONS'])
+def getModeMethod():
+    mode= Mode.objects()
+    name=[]
+    controlData=[]
+    data=[]
+    for i in range(Mode.objects.count()):
+        name.append(mode[i].name)
+        controlData.append(mode[i].controlData)
+        data.append({'name':name[i], 'controlData':controlData[i]})
+    return jsonify({'result':'success', 'message':data})
 
 
