@@ -416,8 +416,7 @@ def editControlsMethods():
 '''
 
 #Get Event Log
-@app.route('/events/<timestamp>', methods=['GET', 'OPTIONS'])
-@requires_auth
+@app.route('/getEventLog/<timestamp>', methods=['GET', 'OPTIONS'])
 def getEventLog(timestamp):
     print(timestamp)
     data = []
@@ -427,7 +426,7 @@ def getEventLog(timestamp):
     groups = Controls.objects.count()
     cont = (Controls.objects())
     for i in range(groups):
-        group.append(cont[i].group)
+        group.append(cont[i].groupName)
         rooms = len(cont[i].rooms)
         for j in range(rooms):
             room.append(cont[i].rooms[j].name)
@@ -436,15 +435,17 @@ def getEventLog(timestamp):
                 control.append(cont[i].rooms[j].controls[k].name)
                 timestamps = len(cont[i].rooms[j].controls[k].userFriendlyLog)
                 for l in range(timestamps):
-
-                    if (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'] >= int(timestamp):
+                    objTimeStamp = cont[i].rooms[j].controls[k].userFriendlyLog[l].keys()[0] 
+                    if (objTimeStamp >= int(timestamp)):
                         data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
-                                     "timeStamp": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['timeStamp'],
-                                     "log": (cont[i].rooms[j].controls[k].userFriendlyLog[l])['log']})
+                                     "timeStamp": objTimeStamp ,
+                                     "log": cont[i].rooms[j].controls[k].userFriendlyLog[l][objTimeStamp]['log']})
                     else:
                         continue
 
+    print(data)
     return jsonify({"result": "success", "message": data})
+
 
 #Get Controls Endpoint
 @app.route('/controls/get', methods=['GET', 'OPTIONS'])
