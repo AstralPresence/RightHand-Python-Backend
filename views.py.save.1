@@ -1,6 +1,6 @@
 from app import app
 from functools import wraps
-import functools
+
 from models import User, Role, AccessGroup, Controls, Rooms, Control,Mode, ControlData
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
 from flask import request
@@ -53,6 +53,7 @@ def check_auth(accessToken):
         current_user = user_datastore.find_user(email=payload['email'])
     except jwt.ExpiredSignatureError:
         return False
+    print(true)
     return True
 
 
@@ -321,9 +322,7 @@ def login():
     token = content['idToken']
 
     try:
-	grequest = requests.Request()
-	request_with_timeout = functools.partial(request, timeout=2)
-        idinfo = id_token.verify_oauth2_token(token, grequest)
+        idinfo = id_token.verify_oauth2_token(token, requests.Request())
         if idinfo['aud'] not in [CLIENT_ID_IOS, CLIENT_ID_AND, CLIENT_ID_WEB]:
             raise ValueError('Could not verify audience.')
 

@@ -1,1 +1,1 @@
-{ "indexes" : [ { "v" : 1, "name" : "_id_", "key" : { "_id" : 1 }, "ns" : "rhDB.access_group" }, { "v" : 1, "name" : "access.control_1", "key" : { "access.control" : 1 }, "unique" : true, "ns" : "rhDB.access_group", "background" : false, "sparse" : false, "dropDups" : false }, { "v" : 1, "name" : "name_1", "key" : { "name" : 1 }, "unique" : true, "ns" : "rhDB.access_group", "background" : false, "sparse" : false, "dropDups" : false } ] }
+{ "indexes" : [ { "v" : 1, "name" : "_id_", "key" : { "_id" : 1 }, "ns" : "rhDB.access_group" } ] }
