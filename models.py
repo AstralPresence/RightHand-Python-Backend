@@ -23,6 +23,7 @@ class User(db.Document,UserMixin):
     refreshSecret = db.LongField()
     active = db.BooleanField(default=True)
     fingerID = db.LongField()
+    password = db.StringField()
     meta = { 'collection': 'users', 'queryset_class': BaseQuerySet}
 
 class Control(db.EmbeddedDocument):

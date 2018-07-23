@@ -21,7 +21,7 @@ mqtt = Mqtt(app)
 #mongoengine instance
 db = MongoEngine(app)
 client = MongoClient('localhost', 27017)
-mongo = client.RpiServer
+mongo = client.rhDB
 
 
 #flask-cors initialization

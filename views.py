@@ -102,7 +102,7 @@ def checkFingerAccess(id):
         for i in range(len(access_group.UIDs)):
             if access_group.UIDs[i] == email:
                 for j in range(len(access_group.access)):
-                    if access_group.access[j].control==control:
+                    if access_group.access[j].control == control:
                        for k in range(len(access_group.access[j].time)):
                            if (access_group.access[j].time[k].start <= int(current_time)) and (access_group.access[j].time[k].stop >= int(current_time)):
                                print('found')
@@ -180,7 +180,7 @@ def editUsersMethod():
     user.accessGroupType = content['accessGroupType']
     user.userValidity = content['userValidity']
     user.save()
-    return jsonify({'result':'success', 'message': 'user editted'})
+    return jsonify({'result': 'success', 'message': 'user editted'})
 '''
 { "email": "adam@gmail.com",
   "accessGroupType":"other",                #new type
@@ -296,19 +296,19 @@ def accessGroupMethod():
 @requires_auth
 def getAccessGroups():
     name = []
-    controls=[]
-    data=[]
+    controls = []
+    data = []
     accessGroup = AccessGroup.objects()
     accessGroups = AccessGroup.objects.count()
     for i in range(accessGroups):
         if accessGroup[i].type == 'owner':
             name.append(accessGroup[i].name)
-            data.append({'name':name[i]})
+            data.append({'name': name[i]})
         elif accessGroup[i].type == 'other':
             name.append(accessGroup[i].name)
             controls.append(accessGroup[i].accessAllowed)
-            data.append({'name':name[i], 'controls':controls[i]})
-    return jsonify({'result':'success', 'message': data})
+            data.append({'name': name[i], 'controls': controls[i]})
+    return jsonify({'result': 'success', 'message': data})
 
                     # AUTHORIZATION
 #Login Endpoint
@@ -385,6 +385,24 @@ def getAccessToken():
         accessToken = jwt.encode({'email': user.email, 'exp': secs + 360}, secret, algorithm='HS256')
         return accessToken
 
+@app.route('/loginEmail', methods=['POST'])                  #loginEmail
+def loginMethod():
+    content = request.get_json(force=True)
+    refreshKey = random.getrandbits(32)
+    if User.objects(email=content['email'], password=content['password']):
+        user = User.objects.get(email=content['email'], password=content['password'])
+    else:
+        return jsonify({'result': 'fail', 'message': 'invalid email or password'})
+    if user.refreshSecret:
+        refreshKey = user.refreshSecret
+    else:
+        refreshKey = random.getrandbits(32)
+        user.refreshSecret = refreshKey
+        user.save()
+
+    refreshToken = jwt.encode({'refreshSecret': refreshKey, 'email': user.email}, secret,algorithm='HS256')
+    return jsonify({'result': 'success', 'message': str(refreshToken)})
+
 
                     #CONTROLS
 #Edit Control Endpoint
@@ -417,6 +435,7 @@ def editControlsMethods():
 
 #Get Event Log
 @app.route('/getEventLog/<timestamp>', methods=['GET', 'OPTIONS'])
+@requires_auth
 def getEventLog(timestamp):
     print(timestamp)
     data = []
@@ -435,7 +454,7 @@ def getEventLog(timestamp):
                 control.append(cont[i].rooms[j].controls[k].name)
                 timestamps = len(cont[i].rooms[j].controls[k].userFriendlyLog)
                 for l in range(timestamps):
-                    objTimeStamp = cont[i].rooms[j].controls[k].userFriendlyLog[l].keys()[0] 
+                    objTimeStamp = cont[i].rooms[j].controls[k].userFriendlyLog[l].keys()[0]
                     if (objTimeStamp >= int(timestamp)):
                         data.append({"id": group[i] + '/' + room[j] + '/' + control[k],
                                      "timeStamp": objTimeStamp ,
@@ -445,7 +464,6 @@ def getEventLog(timestamp):
 
     print(data)
     return jsonify({"result": "success", "message": data})
-
 
 #Get Controls Endpoint
 @app.route('/controls/get', methods=['GET', 'OPTIONS'])
@@ -597,5 +615,4 @@ def getModeMethod():
         controlData.append(mode[i].controlData)
         data.append({'name':name[i], 'controlData':controlData[i]})
     return jsonify({'result':'success', 'message':data})
-
 
