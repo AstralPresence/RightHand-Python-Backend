@@ -3,7 +3,7 @@ import json
 from flask_mongoengine import MongoEngine
 from pymongo import MongoClient
 from flask_cors import CORS
-#from flask_security import MongoEngineUserDatastore
+from flask_security import MongoEngineUserDatastore
 from flask_mqtt import Mqtt
 
 #logging for flask-cors
@@ -20,8 +20,8 @@ mqtt = Mqtt(app)
 
 #mongoengine instance
 db = MongoEngine(app)
-client = MongoClient('localhost', 27017)
-mongo = client.rhDB
+#client = MongoClient('localhost', 27017)
+#mongo = client.rhDB
 
 
 #flask-cors initialization
@@ -77,21 +77,20 @@ def handle_mqtt_message(client, userdata, message):
                             print('Mqtt updated status')
                             return
                         elif key == 'action':
-                            if content['key'] =='requestAccess':
+                            if content['key'] == 'requestAccess':
                                 id = content['id']
-                                if checkFingerAccess(id) :
-                                    mqtt.publish(data['topic'],jsonify({"action":"allowAccess"}))
+                                if checkFingerAccess(id):
+                                    mqtt.publish(data['topic'], jsonify({"action":"allowAccess"}))
                                     return
-                                else :
-                                    mqtt.publish(data['topic'],jsonify({"action":"denyAccess"}))
+                                else:
+                                    mqtt.publish(data['topic'], jsonify({"action":"denyAccess"}))
                                     return
-                            elif content['key'] =='enrollID':
+                            elif content['key'] == 'enrollID':
                                 id = content['id']
                                 email = content['email']
                                 user = user_datastore.find_user(email=idinfo['email'])
                                 user_datastore.delete_user(user)
-                                user_datastore.create_user(email=user['email'], refreshSecret=user['refreshSecret'], name=user['name'],
-                                   accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'],fingerID = id)
+                                user_datastore.create_user(email=user['email'], refreshSecret=user['refreshSecret'], name=user['name'], accessGroupType=user['accessGroupName'], profilePicURL=user['profilePicURL'], fingerID=id)
     print('Mqtt update status failed'+json.dumps(data))
 
 @mqtt.on_log()
@@ -101,7 +100,47 @@ def handle_logging(client, userdata, level, buf):
 
 
 
-
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, use_reloader=True, debug=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 

@@ -1,7 +1,7 @@
 from app import app
 from functools import wraps
 
-from models import User, Role, AccessGroup, Controls, Rooms, Control, Mode, ControlData
+from models import User, Role, AccessGroup, Controls, Rooms, Control, Mode, ControlData, Wifi
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
 from flask import request
 from flask import jsonify, redirect, Response
@@ -12,7 +12,7 @@ import time
 import jwt
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from app import mongo, db
+from app import db
 
 CLIENT_ID = "25667199244-6vrfmn6kif5psmu2p8q3t8v5q9701sat.apps.googleusercontent.com"
 QRKey = 'mhUfnCAM2gid8PomMTP25c8N9xVsGRHYX5NwQfMPZpVhDWttj0kpqpYwIpk2LnX1GFpLD8ohG1a6GMkTcfd6y3uvD7sdXawvoC5Tdau2IK4f8SkamnaZ9qUgXiDL'
@@ -29,7 +29,6 @@ def authenticate():
         'You have to login with proper credentials', 401,
         {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
-
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -43,7 +42,6 @@ def requires_auth(f):
         return f(*args, **kwargs)
 
     return decorated
-
 
 def check_auth(accessToken):
     try:
@@ -124,7 +122,7 @@ def checkFingerAccess(id):
 @app.route('/users/create', methods=['POST', 'OPTIONS'])
 @requires_auth
 def createUsersMethod():
-    content = request.get_json()
+    content = request.get_json(force=True)
     if user_datastore.find_user(email=content['email']):
         return jsonify({"result": "fail", "message": "email already exists"})
     else:
@@ -175,7 +173,7 @@ def getUsersMethod():
 @app.route('/users/edit', methods=['POST', 'OPTIONS'])
 @requires_auth
 def editUsersMethod():
-    content = request.get_json()
+    content = request.get_json(force=True)
     user = User.objects.get(email=content['email'])
     user.accessGroupType = content['accessGroupType']
     user.userValidity = content['userValidity']
@@ -183,7 +181,7 @@ def editUsersMethod():
     return jsonify({'result': 'success', 'message': 'user editted'})
 '''
 { "email": "adam@gmail.com",
-  "accessGroupType":"other",                #new type
+  "accessGroupType":"other",                
   "userValidity": "201807111620"
 }
 '''
@@ -192,10 +190,12 @@ def editUsersMethod():
 @app.route('/users/delete', methods=['POST', 'OPTIONS'])
 @requires_auth
 def deleteUsersMethod():
-    content = request.get_json()
+    content = request.get_json(force=True)
+    current_user = user_datastore.find_user(email="adam@gmail.com")
     if current_user.accessGroupType == 'owner':
         if user_datastore.find_user(email=content['email']):
-            user_datastore.delete_user(email=content['email'])
+            duser = user_datastore.find_user(email=content['email'])
+            user_datastore.delete_user(duser)
             return jsonify({'result': 'success', 'message': 'user deleted'})
         else:
             return jsonify({'result': 'fail', 'message': 'user not found'})
@@ -295,20 +295,13 @@ def accessGroupMethod():
 @app.route('/accessGroup/get', methods=['GET', 'OPTIONS'])
 @requires_auth
 def getAccessGroups():
-    name = []
-    controls = []
     data = []
     accessGroup = AccessGroup.objects()
-    accessGroups = AccessGroup.objects.count()
-    for i in range(accessGroups):
-        if accessGroup[i].type == 'owner':
-            name.append(accessGroup[i].name)
-            data.append({'name': name[i]})
-        elif accessGroup[i].type == 'other':
-            name.append(accessGroup[i].name)
-            controls.append(accessGroup[i].accessAllowed)
-            data.append({'name': name[i], 'controls': controls[i]})
-    return jsonify({'result': 'success', 'message': data})
+    print(accessGroup)
+    for object in accessGroup:
+        data.append(AccessGroup.objects.get(id=object.id))
+    return jsonify(data)
+
 
                     # AUTHORIZATION
 #Login Endpoint
@@ -389,8 +382,8 @@ def getAccessToken():
 def loginMethod():
     content = request.get_json(force=True)
     refreshKey = random.getrandbits(32)
-    if User.objects(email=content['email'], password=content['password']):
-        user = User.objects.get(email=content['email'], password=content['password'])
+    if User.objects(email=content['email']):
+        user = User.objects.get(email=content['email'])
     else:
         return jsonify({'result': 'fail', 'message': 'invalid email or password'})
     if user.refreshSecret:
@@ -401,15 +394,14 @@ def loginMethod():
         user.save()
 
     refreshToken = jwt.encode({'refreshSecret': refreshKey, 'email': user.email}, secret,algorithm='HS256')
-    return jsonify({'result': 'success', 'message': str(refreshToken)})
-
+    return refreshToken
 
                     #CONTROLS
 #Edit Control Endpoint
 @app.route('/controls/edit', methods=['POST', 'OPTIONS'])
 @requires_auth
 def editControlsMethods():
-    content = request.get_json()
+    content = request.get_json(force=True)
     controlGroup = Controls.objects.get(groupName=grn[0])
     for room in controlGroup.rooms:
         if room['name'] == content['room']:
@@ -469,7 +461,7 @@ def getEventLog(timestamp):
 @app.route('/controls/get', methods=['GET', 'OPTIONS'])
 @requires_auth
 def displayControls():
-    content = request.get_json()
+    content = request.get_json(force=True)
     try:
         email = current_user['email']
         type = current_user.accessGroupType  # accessGroupType
@@ -556,7 +548,7 @@ def displayControls():
 # Create Mode Endpoint
 @app.route('/mode/create', methods=['POST', 'OPTIONS'])
 def modeCreateMethod():
-    content = request.get_json()
+    content = request.get_json(force=True)
     if Mode.objects(name=content['name']):
         mode=Mode.objects.get(name=content['name'])
         flag = 0
@@ -616,3 +608,10 @@ def getModeMethod():
         data.append({'name':name[i], 'controlData':controlData[i]})
     return jsonify({'result':'success', 'message':data})
 
+
+@app.route('/', methods=['POST'])
+def home():
+    content = request.get_json(force=True)
+    wifi = Wifi(ssid=content['ssid'], password=content['password'])
+    wifi.save()
+    return jsonify({'result':'success', 'message':'saved'})
