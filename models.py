@@ -1,13 +1,12 @@
 from app import db
 from flask_mongoengine import BaseQuerySet
-from flask_security import UserMixin,RoleMixin
+from flask_security import UserMixin, RoleMixin
 
 class AccessGroup(db.DynamicDocument):
-    type = db.StringField(max_length = 10)
-    name = db.StringField(max_length=80, unique = True)
+    type = db.StringField(max_length=10)
+    name = db.StringField(max_length=80, unique=True)
     UIDs = db.ListField(db.StringField(), default=[])
-    #accessAllowed = db.ListField(db.GenericEmbeddedDocumentField(Access))
-    meta = {'collection': 'access_group', 'queryset_class': BaseQuerySet}
+    meta = {'collection': 'access_group'}
 
 
 class Role(db.Document, RoleMixin):
@@ -31,6 +30,7 @@ class Control(db.EmbeddedDocument):
     name = db.StringField()
     controlStatus = db.FloatField()
     displayName = db.StringField()
+    ip = db.StringField()
     userFriendlyLog = db.ListField()
     type = db.StringField()
 

@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.config.from_pyfile('config.py')
 
 #Mqtt instance
-mqtt = Mqtt(app)
+#mqtt = Mqtt(app)
 
 #mongoengine instance
 db = MongoEngine(app)
@@ -31,7 +31,7 @@ CORS(app, supports_credentials=True)                       #cookies enabled duri
 from views import *
 from models import *
 
-
+"""
 @mqtt.on_connect()
 def handle_connect(client, userdata, flags, rc):
     print("mqtt connected")
@@ -97,7 +97,7 @@ def handle_mqtt_message(client, userdata, message):
 def handle_logging(client, userdata, level, buf):
     print(level, buf)
 
-
+"""
 
 
 if __name__ == '__main__':
