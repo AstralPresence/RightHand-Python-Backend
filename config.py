@@ -15,5 +15,5 @@ MQTT_TLS_ENABLED = False  # set TLS to disabled for testing purposes
 
 #mongoengine
 MONGODB_DB = 'rhDB'
-MONGODB_HOST = '192.168.43.153'
+MONGODB_HOST = 'localhost'
 MONGODB_PORT = 27017
