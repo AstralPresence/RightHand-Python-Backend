@@ -116,7 +116,7 @@ def checkFingerAccess(id):
         return False
 
 
-                    #USER MANAGEMENT
+"""-------------------------------------------------USER MANAGEMENT-------------------------------------------------"""
 #Create User Endpoint
 @app.route('/users/create', methods=['POST', 'OPTIONS'])
 @requires_auth
@@ -190,7 +190,6 @@ def editUsersMethod():
 @requires_auth
 def deleteUsersMethod():
     content = request.get_json(force=True)
-    #current_user = user_datastore.find_user(email="adam@gmail.com")
     if current_user.accessGroupType == 'owner':
         if user_datastore.find_user(email=content['email']):
             duser = user_datastore.find_user(email=content['email'])
@@ -205,7 +204,7 @@ def deleteUsersMethod():
 { "email" : "adam@gmail.com"}
 '''
 
-                    #ACCESS GROUP
+"""-----------------------------------------------ACCESS GROUP------------------------------------------------------"""
 #create group endpoint
 @app.route('/accessGroup/create', methods=['POST', 'OPTIONS'])
 @requires_auth
@@ -303,8 +302,7 @@ def getAccessGroups():
 
     return jsonify({"result": "success", "message": data})
 
-
-                    # AUTHORIZATION
+"""-------------------------------------------AUTHORIZATION--------------------------------------------------------"""
 #Login Endpoint
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
@@ -409,7 +407,7 @@ def loginMethod():
     "password": "abcd"
 }
 """
-                    #CONTROLS
+"""----------------------------------------------------CONTROLS----------------------------------------------------"""
 #Edit Control Endpoint
 @app.route('/controls/edit', methods=['POST', 'OPTIONS'])
 @requires_auth
@@ -423,19 +421,21 @@ def editControlsMethods():
                     control['controlStatus'] = content['control']['controlStatus']
                     control['displayName'] = content['control']['displayName']
                     control['ip'] = content['control']['ip']
+                    control['type'] = content['control']['type']
                     control.save()
-                    return jsonify({'result': 'success'})
+                    return jsonify({'result': 'success', 'message': 'control editted'})
 
     return jsonify({'result': 'fail', 'message': 'control does not exist'})
 
 
 '''
-{"group":"firstfloor",
+{"group":"firstFloor",
 "room":"terrace",
 "control":{"controlStatus":0,
             "displayName":"light",
               "name":"light1",
-              "ip" : ""
+              "ip" : "",
+              "type": "LIGHT"
              }
 }
 '''
@@ -466,9 +466,10 @@ def displayControls():
                         if control['name'] == control_topic:
                             display_name = control['displayName']
                             ip = control['ip']
+                            type = control['type']
                             control_status = control['controlStatus']
                             data.append({"groupName": group_name, "room": room_name, "controlTopic": control_topic,
-                                         "displayName": display_name, "ip": ip, "controlStatus": control_status})
+                                         "displayName": display_name, "ip": ip,"type": type, "controlStatus": control_status})
 
     elif type == 'owner':
         for control in Controls.objects():
@@ -480,8 +481,9 @@ def displayControls():
                     control_status = controls.controlStatus
                     display_name = controls.displayName
                     ip = controls.ip
+                    type = controls.type
                     data.append({"groupName": group_name, "room": room_name, "controlName": control_name,
-                                 "displayName": display_name, "ip": ip, "controlStatus": control_status})
+                                 "displayName": display_name, "ip": ip,"type": type, "controlStatus": control_status})
 
 
     return jsonify({'result':'success', 'message': data})
