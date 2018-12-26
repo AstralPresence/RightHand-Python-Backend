@@ -1,55 +1,60 @@
+
 from app import db
+from flask_mongoengine import BaseQuerySet
+from flask_security import UserMixin, RoleMixin
+
+class AccessGroup(db.DynamicDocument):
+    type = db.StringField(max_length=10)
+    name = db.StringField(max_length=80, unique=True)
+    UIDs = db.ListField(db.StringField(), default=[])
+    meta = {'collection': 'access_group'}
+
+
+class Role(db.Document, RoleMixin):
+    name = db.StringField(max_length=255)
+
+class User(db.Document,UserMixin):
+    roles = db.ListField(db.ReferenceField(Role))
+    email = db.StringField(max_length=255, unique=True)
+    accessGroupType = db.StringField(max_length=80)
+    #accessGroupName = db.StringField(max_length=80)
+    profilePicURL = db.StringField()
+    name = db.StringField(max_length=150)
+    userValidity = db.StringField(max_length=12)
+    refreshSecret = db.LongField()
+    active = db.BooleanField(default=True)
+    fingerID = db.LongField()
+    password = db.StringField()
+    meta = {'collection': 'users', 'queryset_class': BaseQuerySet}
+
+class Control(db.EmbeddedDocument):
+    name = db.StringField()
+    controlStatus = db.FloatField()
+    displayName = db.StringField()
+    ip = db.StringField()
+    userFriendlyLog = db.ListField()
+    type = db.StringField()
+
+class Rooms(db.EmbeddedDocument):
+    name = db.StringField()
+    controls = db.ListField(db.EmbeddedDocumentField(Control))
 
 class Controls(db.Document):
-    name = db.StringField(max_length=80, unique = True)
-    controlStatus = db.FloatField(min_value = 0 ,max_value = 1)
-    control_id = db.StringField(max_length=20)
+    groupName = db.StringField()
+    rooms = db.ListField(db.EmbeddedDocumentField(Rooms))
+    meta = {'collection': 'controls', 'queryset_class': BaseQuerySet}
 
-class Rooms(db.Document):
-    name = db.StringField(max_length=80, unique =True)
-    controls = db.ListField(db.ReferenceField(Controls), default=[])
+class ControlData(db.EmbeddedDocument):
+    controlTopic = db.StringField()
+    controlStatus = db.FloatField()
 
-class ControlsCollection(db.Document):
-    group = db.StringField(max_length = 80, unique = True)
-    rooms = db.ListField(db.ReferenceField(Rooms),default = [])
-
-class Time(db.Document):
-    start = db.IntField()
-    stop = db.IntField()
-
-class AccessGroup(db.Document):
-    name = db.StringField(max_length=80, unique = True)
-    UIDs = db.ListField(db.StringField(), default=[])
-    accessibleControlIDs = db.ListField(db.StringField(), default=[])
-    accessTime = db.ListField(db.ReferenceField(Time), default=[])
+class Mode(db.Document):
+    name = db.StringField()
+    controlData = db.EmbeddedDocumentListField(ControlData)
 
 
-
-class User(db.Document):
-    email = db.StringField(max_length=255, unique = True)
-    accessGroup = db.StringField(max_length=255)
-    active = db.BooleanField(default=True)
-    confirmed_at = db.DateTimeField()
-    picture = db.StringField()
-    userExpiry = db.StringField()
-    userID = db.StringField()
-    name = db.StringField(max_length=255)
-    refreshSecret = db.LongField()
-    roles = db.StringField()
-
-class Role(db.Document):
-    name = db.StringField(max_length=80, unique = True)
-    description = db.StringField(max_length=255)
-
-'''
 class Wifi(db.Document):
     ssid = db.StringField()
     password = db.StringField()
-
-'''
-
-
-
-
-
+    meta = {'max_documents': 1, 'max_size': 200}
 
