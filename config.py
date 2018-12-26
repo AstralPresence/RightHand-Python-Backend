@@ -17,3 +17,4 @@ MQTT_TLS_ENABLED = False  # set TLS to disabled for testing purposes
 MONGODB_DB = 'rhDB'
 MONGODB_HOST = 'localhost'
 MONGODB_PORT = 27017
+

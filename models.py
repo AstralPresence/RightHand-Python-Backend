@@ -1,3 +1,4 @@
+
 from app import db
 from flask_mongoengine import BaseQuerySet
 from flask_security import UserMixin, RoleMixin
@@ -56,3 +57,4 @@ class Wifi(db.Document):
     ssid = db.StringField()
     password = db.StringField()
     meta = {'max_documents': 1, 'max_size': 200}
+
