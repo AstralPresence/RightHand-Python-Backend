@@ -1,9 +1,10 @@
 from app import app
 from functools import wraps
+import subprocess
 
 from models import *
 from flask_security import MongoEngineUserDatastore, UserMixin, RoleMixin
-from flask import request
+from flask import request, render_template
 from flask import jsonify, redirect, Response
 import random
 import datetime
@@ -53,68 +54,20 @@ def check_auth(accessToken):
     return True
 
 
-def decodeControls(control):
-    data = [0, 0]
-    j = 0
-    for i in range(len(control)):
-        if control[i] == '/':
-            data[j] = i
-            j = j + 1
-    group = control[0:(data[0])]
-    room = control[(data[0] + 1):(data[1])]
-    controlName = control[(data[1] + 1):]
-    return [group, room, controlName]
-
-
-def checkValidity(timeStamp):
-    currentDT = datetime.datetime.now()
-    currentdt = currentDT.strftime("%Y%m%d%H%M")
-    print(str(currentdt))
-    if timeStamp < str(currentdt):
-        return False  # expired
-    else:
-        return True   # valid
-
-
 user_datastore = MongoEngineUserDatastore(db, User, Role)
 
-def checkFingerAccess(id):
-    try:
-        user = user_datastore.find_user(fingerID=id)
-        type = user.accessGroupType
-        email = user.email
-        print('try')
-    except:
-        print('except')
-        return False
 
-    if type == 'owner':
-        return True
-    else:
-        control = 'groundFloor/livingRoom/doorlock'
-        current_time = datetime.datetime.now()
-        current_time = current_time.strftime("%H%M")
-        j = 0
-        access_group = AccessGroup.objects.get(type=type)
-        for i in range(len(access_group.UIDs)):
-            if access_group.UIDs[i] == email:
-                for j in range(len(access_group.access)):
-                    if access_group.access[j].control == control:
-                       for k in range(len(access_group.access[j].time)):
-                           if (access_group.access[j].time[k].start <= int(current_time)) and (access_group.access[j].time[k].stop >= int(current_time)):
-                               print('found')
-                               return True
-                           else:
-                               print('Time not found')
-                               continue
-                    else:
-                        print('control not found')
-                        continue
-            else:
-                continue
-        print('end')
-        return False
+"""---------------------------------------------------DOOR CAM UNIT--------------------------------------------"""
+@app.route('/playSpeaker', methods=['GET'])
+def playSpeakerMethod():
+    subprocess.call(["vlc","-vvv","--network-caching","1000","rtsp://192.168.1.109:80/righthand/mic"])
+    return jsonify({'result': 'success'})
 
+   
+
+@app.route('/doorCam')
+def doorCam():
+    return render_template('index.html')
 
 """-------------------------------------------------USER MANAGEMENT-------------------------------------------------"""
 #Create User Endpoint
@@ -354,7 +307,7 @@ def login():
         user_datastore.create_user(email=idinfo['email'], refreshSecret=refreshKey, name=user['name'],
                                    accessGroupType=user['accessGroupType'], profilePicURL=user['profilePicURL'],
                                    fingerID=user['fingerID'])
-        return jsonify({"message": refreshToken, "result": "success"})
+        return jsonify({"message": str(refreshToken), "result": "success"})
 
 
 
@@ -390,7 +343,7 @@ def loginMethod():
     if User.objects(email=content['email']):
         user = User.objects.get(email=content['email'])
     else:
-        return jsonify({'result': 'fail', 'message': 'invalid email or password'})
+        return 'fail'
     if user.refreshSecret:
         refreshKey = user.refreshSecret
     else:
